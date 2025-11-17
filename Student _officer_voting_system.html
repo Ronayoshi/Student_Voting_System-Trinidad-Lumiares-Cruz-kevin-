@@ -319,6 +319,19 @@
       }
     });
 
+    function updateSchoolName() {
+  const newTitle = $('schoolNameInput').value.trim();
+  if (!newTitle) return alert("Please enter a system title.");
+
+  // Update text on screen
+  $('mainTitle').textContent = newTitle;
+
+  // Update <title> in browser tab
+  $('pageTitle').textContent = newTitle;
+
+  alert("Title updated successfully!");
+}
+
     // POSITIONS
     function addPosition() {
       const newPos = $('newPosition').value.trim();
@@ -385,34 +398,27 @@
       alert("Candidate added!");
     }
 
-    function editCandidate(pos, name) {
-      const c = pollData[pos][name];
-      if (!c) return alert("Candidate not found.");
-      const newName = prompt("Edit candidate name:", name) || name;
-      const newYear = prompt("Edit year & section:", c.yearSec) || c.yearSec;
-      const newDesc = prompt("Edit description:", c.desc) || c.desc;
+    function editCandidate(pos,name) {
+  const c=pollData[pos][name]; if(!c) return alert("Candidate not found.");
+  const oldName=name; // original key
+  const newName=prompt("Edit candidate name:",name)||name;
+  const newYear=prompt("Edit year & section:",c.yearSec)||c.yearSec;
+  const newDesc=prompt("Edit description:",c.desc)||c.desc;
 
-      // Ask admin if they want to replace image
-      const changeImg = confirm("Would you like to replace the candidate photo?");
-      if (changeImg) {
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = "image/*";
-        fileInput.onchange = e => {
-          const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = ev => applyCandidateEdit(pos, name, newName, newYear, newDesc, ev.target.result);
-            reader.readAsDataURL(file);
-          } else {
-            applyCandidateEdit(pos, name, newName, newYear, newDesc, c.img);
-          }
-        };
-        fileInput.click();
-      } else {
-        applyCandidateEdit(pos, name, newName, newYear, newDesc, c.img);
-      }
-    }
+  const changeImg=confirm("Would you like to replace the candidate photo?");
+  if(changeImg){
+    const fileInput=document.createElement("input"); fileInput.type="file"; fileInput.accept="image/*";
+    fileInput.onchange=e=>{
+      const file=e.target.files[0];
+      if(file){
+        const reader=new FileReader();
+        reader.onload=ev=>applyCandidateEdit(pos,oldName,newName,newYear,newDesc,ev.target.result);
+        reader.readAsDataURL(file);
+      }else{ applyCandidateEdit(pos,oldName,newName,newYear,newDesc,c.img); }
+    };
+    fileInput.click();
+  }else{ applyCandidateEdit(pos,oldName,newName,newYear,newDesc,c.img); }
+}
 
     function applyCandidateEdit(pos, oldName, newName, newYear, newDesc, newImg) {
       const c = pollData[pos][oldName];
