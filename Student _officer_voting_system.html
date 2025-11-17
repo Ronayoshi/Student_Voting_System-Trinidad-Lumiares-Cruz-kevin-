@@ -73,19 +73,16 @@
       cursor: pointer;
       margin-right:6px;
     }
-    .actionBtn:hover {
-      background: #005bb5;
-    }
-    .deleteBtn {
-      background: #d9534f;
-    }
-    .deleteBtn:hover {
-      background: #b52b27;
-    }
+    .actionBtn:hover { background: #005bb5; }
+    .deleteBtn { background: #d9534f; }
+    .deleteBtn:hover { background: #b52b27; }
     .posCard { border:1px solid #e0e0e0; padding:10px; border-radius:8px; margin-bottom:10px; }
     .positionHeader { font-weight:bold; margin-bottom:6px; color:#003366; }
     .timestamp { font-size:12px; color:#666; margin-bottom:8px; }
     .small { font-size:12px; color:#444; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; }
+    .controls > * { flex: 1 1 150px; }
+    .note { font-size:13px; color:#555; margin-top:8px; }
   </style>
 </head>
 <body>
@@ -104,7 +101,7 @@
   <div id="adminLoginBox" class="box hidden">
     <h3>Admin Login</h3>
     <label>Username:</label>
-    <input type="text" id="adminUser" placeholder="Enter admin username" value="">
+    <input type="text" id="adminUser" placeholder="Enter admin username" value="admin">
     <label>Password:</label>
     <input type="password" id="adminPass" placeholder="Enter password" value="">
     <div class="btnRow" style="display:flex;gap:10px;">
@@ -117,7 +114,7 @@
   <div id="studentLoginBox" class="box hidden">
     <h3>Student Login</h3>
     <label>Username:</label>
-    <input type="text" id="studentUser" placeholder="Enter student username" value="">
+    <input type="text" id="studentUser" placeholder="Enter student username" value="student">
     <label>Password:</label>
     <input type="password" id="studentPass" placeholder="Enter password" value="">
     <div class="btnRow" style="display:flex;gap:10px;">
@@ -154,7 +151,10 @@
     <label>Photo:</label>
     <input type="file" id="imageFile" accept="image/*">
 
-    <button onclick="addCandidate()">Add Candidate</button>
+    <div class="controls">
+      <button onclick="addCandidate()">Add Candidate</button>
+    </div>
+
     <hr>
 
     <h4>Manage Positions</h4>
@@ -223,9 +223,12 @@
       return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
 
-    // Data and state
+    // LOCAL STORAGE KEY
+    const STORAGE_KEY = 'sovs_data_v1';
+
+    // Data and state (will be loaded from localStorage)
     let schoolName = "Student Officer Voting System";
-    const users = { admin: "123", student: "123" };
+    let users = { admin: "123", student: "123" };
     let currentUser = "";
     let votedIDs = new Set();
     let voterList = [];
@@ -249,6 +252,47 @@
 
     let uploadedImage = "";
 
+    // SAVE / LOAD
+    function saveState() {
+      try {
+        const state = {
+          schoolName,
+          users,
+          positions,
+          pollData,
+          voterList,
+          votedIDs: Array.from(votedIDs)
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.error('Error saving state', e);
+        alert('Failed to save to local storage.');
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const state = JSON.parse(raw);
+        // Basic validation and assignment
+        if (state.schoolName) schoolName = state.schoolName;
+        if (state.users) users = state.users;
+        if (Array.isArray(state.positions) && state.positions.length) positions = state.positions;
+        if (state.pollData) pollData = state.pollData;
+        if (Array.isArray(state.voterList)) voterList = state.voterList;
+        if (Array.isArray(state.votedIDs)) votedIDs = new Set(state.votedIDs);
+        return true;
+      } catch (e) {
+        console.error('Error loading state', e);
+        return false;
+      }
+    }
+
+    function exportJSON() {
+      // removed in UI; kept here if needed later
+    }
+
     // INITIALIZE
     function updatePositionDropdown() {
       const sel = $('positionSelect');
@@ -260,7 +304,6 @@
         sel.appendChild(opt);
       });
     }
-    updatePositionDropdown();
 
     // NAV
     function showAdminLogin() { $('mainLogin').classList.add("hidden"); $('adminLoginBox').classList.remove("hidden"); }
@@ -270,47 +313,47 @@
     function adminLogin() {
       const user = $('adminUser').value.trim();
       const pass = $('adminPass').value;
-      if (user === "admin" && pass === users.admin) {
-        currentUser = "admin";
+      if (user === 'admin' && pass === users.admin) {
+        currentUser = 'admin';
         showAdmin();
       } else {
-        alert("Invalid admin credentials");
+        alert('Invalid admin credentials');
       }
     }
     function studentLogin() {
       const user = $('studentUser').value.trim();
       const pass = $('studentPass').value;
-      if (user === "student" && pass === users.student) {
-        currentUser = "student";
+      if (user === 'student' && pass === users.student) {
+        currentUser = 'student';
         showStudent();
       } else {
-        alert("Invalid student credentials");
+        alert('Invalid student credentials');
       }
     }
     function logout() {
-      currentUser = "";
-      document.querySelectorAll(".box").forEach(b => b.classList.add("hidden"));
-      $('mainLogin').classList.remove("hidden");
+      currentUser = '';
+      document.querySelectorAll('.box').forEach(b => b.classList.add('hidden'));
+      $('mainLogin').classList.remove('hidden');
     }
 
     function showAdmin() {
-      document.querySelectorAll(".box").forEach(b => b.classList.add("hidden"));
-      $('logoutBox').classList.remove("hidden");
-      $('adminPanel').classList.remove("hidden");
-      $('resultsBox').classList.remove("hidden");
-      $('voterListBox').classList.remove("hidden");
+      document.querySelectorAll('.box').forEach(b => b.classList.add('hidden'));
+      $('logoutBox').classList.remove('hidden');
+      $('adminPanel').classList.remove('hidden');
+      $('resultsBox').classList.remove('hidden');
+      $('voterListBox').classList.remove('hidden');
       renderAll();
     }
 
     function showStudent() {
-      document.querySelectorAll(".box").forEach(b => b.classList.add("hidden"));
-      $('logoutBox').classList.remove("hidden");
-      $('studentPanel').classList.remove("hidden");
+      document.querySelectorAll('.box').forEach(b => b.classList.add('hidden'));
+      $('logoutBox').classList.remove('hidden');
+      $('studentPanel').classList.remove('hidden');
       renderVoteArea();
     }
 
     // IMAGE UPLOAD
-    $('imageFile').addEventListener("change", e => {
+    $('imageFile').addEventListener('change', e => {
       const file = e.target.files[0];
       if (file) {
         const reader = new FileReader();
@@ -320,61 +363,61 @@
     });
 
     function updateSchoolName() {
-  const newTitle = $('schoolNameInput').value.trim();
-  if (!newTitle) return alert("Please enter a system title.");
-
-  // Update text on screen
-  $('mainTitle').textContent = newTitle;
-
-  // Update <title> in browser tab
-  $('pageTitle').textContent = newTitle;
-
-  alert("Title updated successfully!");
-}
+      const newTitle = $('schoolNameInput').value.trim();
+      if (!newTitle) return alert('Please enter a system title.');
+      schoolName = newTitle;
+      // Update text on screen
+      $('mainTitle').textContent = newTitle;
+      // Update <title> in browser tab
+      $('pageTitle').textContent = newTitle;
+      saveState();
+      alert('Title updated successfully!');
+    }
 
     // POSITIONS
     function addPosition() {
       const newPos = $('newPosition').value.trim();
-      if (!newPos) return alert("Enter a position name.");
-      if (positions.includes(newPos)) return alert("Position already exists.");
+      if (!newPos) return alert('Enter a position name.');
+      if (positions.includes(newPos)) return alert('Position already exists.');
       positions.push(newPos);
       pollData[newPos] = {};
       updatePositionDropdown();
-      $('newPosition').value = "";
+      $('newPosition').value = '';
       renderAll();
-      alert("Position added!");
+      saveState();
+      alert('Position added!');
     }
 
     function editPosition() {
       const sel = $('positionSelect');
       const selected = sel.value;
-      if (!selected) return alert("Please select a position to edit.");
-      const newName = prompt("Edit position name:", selected);
+      if (!selected) return alert('Please select a position to edit.');
+      const newName = prompt('Edit position name:', selected);
       if (!newName) return;
-      if (newName !== selected && positions.includes(newName)) return alert("A position with that name already exists.");
-      // update positions array
+      if (newName !== selected && positions.includes(newName)) return alert('A position with that name already exists.');
       const idx = positions.indexOf(selected);
       if (idx === -1) return;
       positions[idx] = newName;
-      // move pollData
       pollData[newName] = pollData[selected] || {};
       if (newName !== selected) delete pollData[selected];
       updatePositionDropdown();
       renderAll();
-      alert("Position updated.");
+      saveState();
+      alert('Position updated.');
     }
 
     function deletePosition() {
       const sel = $('positionSelect');
       const selected = sel.value;
-      if (!selected) return alert("Please select a position to delete.");
+      if (!selected) return alert('Please select a position to delete.');
       if (!confirm(`Are you sure you want to delete position "${selected}" and all its candidates?`)) return;
       const idx = positions.indexOf(selected);
       if (idx !== -1) positions.splice(idx, 1);
       delete pollData[selected];
       updatePositionDropdown();
       renderAll();
-      alert("Position deleted.");
+      saveState();
+      alert('Position deleted.');
     }
 
     // CANDIDATES
@@ -383,97 +426,127 @@
       const name = $('candidateInput').value.trim();
       const yearSec = $('candidateYearSection').value.trim();
       const desc = $('candidateDesc').value.trim();
-      if (!pos) return alert("Select a position.");
-      if (!name || !yearSec || !desc) return alert("Please fill in all candidate details.");
+      if (!pos) return alert('Select a position.');
+      if (!name || !yearSec || !desc) return alert('Please fill in all candidate details.');
       const img = uploadedImage || `https://via.placeholder.com/80?text=${encodeURIComponent(name)}`;
       if (!pollData[pos]) pollData[pos] = {};
-      if (pollData[pos][name]) return alert("Candidate already exists.");
+      if (pollData[pos][name]) return alert('Candidate already exists.');
       pollData[pos][name] = { votes: 0, img, yearSec, desc };
-      $('candidateInput').value = "";
-      $('candidateYearSection').value = "";
-      $('candidateDesc').value = "";
-      $('imageFile').value = "";
-      uploadedImage = "";
+      $('candidateInput').value = '';
+      $('candidateYearSection').value = '';
+      $('candidateDesc').value = '';
+      $('imageFile').value = '';
+      uploadedImage = '';
       renderAll();
-      alert("Candidate added!");
+      saveState();
+      alert('Candidate added!');
     }
 
     function editCandidate(pos,name) {
-  const c=pollData[pos][name]; if(!c) return alert("Candidate not found.");
-  const oldName=name; // original key
-  const newName=prompt("Edit candidate name:",name)||name;
-  const newYear=prompt("Edit year & section:",c.yearSec)||c.yearSec;
-  const newDesc=prompt("Edit description:",c.desc)||c.desc;
+      const c = pollData[pos][name]; if(!c) return alert('Candidate not found.');
+      const oldName = name;
+      const newName = prompt('Edit candidate name:', name) || name;
+      const newYear = prompt('Edit year & section:', c.yearSec) || c.yearSec;
+      const newDesc = prompt('Edit description:', c.desc) || c.desc;
 
-  const changeImg=confirm("Would you like to replace the candidate photo?");
-  if(changeImg){
-    const fileInput=document.createElement("input"); fileInput.type="file"; fileInput.accept="image/*";
-    fileInput.onchange=e=>{
-      const file=e.target.files[0];
-      if(file){
-        const reader=new FileReader();
-        reader.onload=ev=>applyCandidateEdit(pos,oldName,newName,newYear,newDesc,ev.target.result);
-        reader.readAsDataURL(file);
-      }else{ applyCandidateEdit(pos,oldName,newName,newYear,newDesc,c.img); }
-    };
-    fileInput.click();
-  }else{ applyCandidateEdit(pos,oldName,newName,newYear,newDesc,c.img); }
-}
+      const changeImg = confirm('Would you like to replace the candidate photo?');
+      if (changeImg) {
+        const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = 'image/*';
+        fileInput.onchange = e => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = ev => applyCandidateEdit(pos,oldName,newName,newYear,newDesc,ev.target.result);
+            reader.readAsDataURL(file);
+          } else { applyCandidateEdit(pos,oldName,newName,newYear,newDesc,c.img); }
+        };
+        fileInput.click();
+      } else { applyCandidateEdit(pos,oldName,newName,newYear,newDesc,c.img); }
+    }
 
     function applyCandidateEdit(pos, oldName, newName, newYear, newDesc, newImg) {
       const c = pollData[pos][oldName];
       if (!c) return;
       if (newName !== oldName) {
-        // move votes and replace
         pollData[pos][newName] = { votes: c.votes, img: newImg, yearSec: newYear, desc: newDesc };
         delete pollData[pos][oldName];
       } else {
         pollData[pos][oldName] = { ...c, img: newImg, yearSec: newYear, desc: newDesc };
       }
       renderAll();
-      alert("Candidate updated!");
+      saveState();
+      alert('Candidate updated!');
     }
 
     function deleteCandidate(pos, name) {
       if (!confirm(`Are you sure you want to delete "${name}" from ${pos}?`)) return;
       delete pollData[pos][name];
       renderAll();
+      saveState();
     }
 
     // SEARCH
     function searchCandidate() {
       const query = $('searchInput').value.toLowerCase();
-      document.querySelectorAll(".candidateRow").forEach(row =>
-        row.style.display = row.dataset.name.toLowerCase().includes(query) ? "" : "none"
+      document.querySelectorAll('.candidateRow').forEach(row =>
+        row.style.display = row.dataset.name.toLowerCase().includes(query) ? '' : 'none'
       );
     }
 
     // RENDER
     function renderAdminList() {
       const candidateList = $('candidateList');
-      candidateList.innerHTML = "";
+      candidateList.innerHTML = '';
       positions.forEach(pos => {
-        const table = document.createElement("table");
+        const table = document.createElement('table');
         table.innerHTML = `<caption>${pos}</caption>
           <tr><th>Picture</th><th>Name</th><th>Year & Section</th><th>Description</th><th>Votes</th><th>Actions</th></tr>`;
         const candidates = pollData[pos] || {};
         Object.keys(candidates).forEach(name => {
           const c = candidates[name];
-          const row = document.createElement("tr");
-          row.classList.add("candidateRow");
+          const row = document.createElement('tr');
+          row.classList.add('candidateRow');
           row.dataset.name = name;
-          const escPos = escapeForInline(pos);
-          const escName = escapeForInline(name);
-          row.innerHTML = `
-            <td><div style="width:60px;height:60px;overflow:hidden;border-radius:8px;border:1px solid #ccc;"><img src="${c.img}" width="60" height="60" style="object-fit:cover;"></div></td>
-            <td>${name}</td>
-            <td>${c.yearSec}</td>
-            <td>${c.desc}</td>
-            <td>${c.votes}</td>
-            <td>
-              <button class="actionBtn" onclick="editCandidate('${escPos}','${escName}')">Edit</button>
-              <button class="actionBtn deleteBtn" onclick="deleteCandidate('${escPos}','${escName}')">Delete</button>
-            </td>`;
+
+          // cells
+          const picTd = document.createElement('td');
+          picTd.innerHTML = `<div style="width:60px;height:60px;overflow:hidden;border-radius:8px;border:1px solid #ccc;"><img src="${c.img}" width="60" height="60" style="object-fit:cover;"></div>`;
+
+          const nameTd = document.createElement('td');
+          nameTd.textContent = name;
+
+          const ysTd = document.createElement('td');
+          ysTd.textContent = c.yearSec;
+
+          const descTd = document.createElement('td');
+          descTd.textContent = c.desc;
+
+          const votesTd = document.createElement('td');
+          votesTd.textContent = c.votes;
+
+          const actionsTd = document.createElement('td');
+
+          // action buttons (use addEventListener to avoid inline-escaping issues)
+          const editBtn = document.createElement('button');
+          editBtn.className = 'actionBtn';
+          editBtn.textContent = 'Edit';
+          editBtn.addEventListener('click', () => editCandidate(pos, name));
+
+          const delBtn = document.createElement('button');
+          delBtn.className = 'actionBtn deleteBtn';
+          delBtn.textContent = 'Delete';
+          delBtn.addEventListener('click', () => deleteCandidate(pos, name));
+
+          actionsTd.appendChild(editBtn);
+          actionsTd.appendChild(delBtn);
+
+          row.appendChild(picTd);
+          row.appendChild(nameTd);
+          row.appendChild(ysTd);
+          row.appendChild(descTd);
+          row.appendChild(votesTd);
+          row.appendChild(actionsTd);
+
           table.appendChild(row);
         });
         candidateList.appendChild(table);
@@ -482,10 +555,10 @@
 
     function renderVoteArea() {
       const voteArea = $('voteArea');
-      voteArea.innerHTML = "";
+      voteArea.innerHTML = '';
       positions.forEach(pos => {
-        const div = document.createElement("div");
-        div.className = "posCard";
+        const div = document.createElement('div');
+        div.className = 'posCard';
         div.innerHTML = `<div class='positionHeader'>${pos}</div>`;
         const candidates = pollData[pos] || {};
         const radioName = safeName(pos);
@@ -494,23 +567,22 @@
         } else {
           Object.keys(candidates).forEach(name => {
             const c = candidates[name];
-            // create a label container
-            const label = document.createElement("label");
-            label.style = "display:flex;align-items:center;gap:10px;margin:5px 0;";
-            const input = document.createElement("input");
-            input.type = "radio";
+            const label = document.createElement('label');
+            label.style = 'display:flex;align-items:center;gap:10px;margin:5px 0;';
+            const input = document.createElement('input');
+            input.type = 'radio';
             input.name = radioName;
             input.value = name;
-            input.style.width = "auto";
-            const imgDiv = document.createElement("div");
-            imgDiv.style = "width:60px;height:60px;overflow:hidden;border-radius:8px;border:1px solid #ccc;";
-            const img = document.createElement("img");
+            input.style.width = 'auto';
+            const imgDiv = document.createElement('div');
+            imgDiv.style = 'width:60px;height:60px;overflow:hidden;border-radius:8px;border:1px solid #ccc;';
+            const img = document.createElement('img');
             img.src = c.img;
             img.width = 60;
             img.height = 60;
-            img.style.objectFit = "cover";
+            img.style.objectFit = 'cover';
             imgDiv.appendChild(img);
-            const info = document.createElement("div");
+            const info = document.createElement('div');
             info.innerHTML = `<strong>${name}</strong><br><small>${c.yearSec}</small><br><em>${c.desc}</em>`;
             label.appendChild(input);
             label.appendChild(imgDiv);
@@ -528,49 +600,41 @@
       const grade = $('voterGrade').value.trim();
       const section = $('voterSection').value.trim();
 
-      if (!id || !name || !grade || !section) return alert("Please fill in your name, grade, section, and student ID.");
-      if (votedIDs.has(id)) return alert("You already voted.");
+      if (!id || !name || !grade || !section) return alert('Please fill in your name, grade, section, and student ID.');
+      if (votedIDs.has(id)) return alert('You already voted.');
       let allSelected = true;
       const chosenPerPos = [];
 
-      // Check each position
       for (const pos of positions) {
         const radioName = safeName(pos);
         const chosen = document.querySelector(`input[name='${radioName}']:checked`);
-        if (!chosen) {
-          allSelected = false;
-          break;
-        } else {
+        if (!chosen) { allSelected = false; break; }
+        else {
           const candidateName = chosen.value;
-          // safety check if candidate exists
-          if (!pollData[pos] || !pollData[pos][candidateName]) {
-            alert(`Selected candidate for ${pos} not found. Please try again.`);
-            return;
-          }
+          if (!pollData[pos] || !pollData[pos][candidateName]) { alert(`Selected candidate for ${pos} not found. Please try again.`); return; }
           chosenPerPos.push({ pos, candidateName });
         }
       }
 
-      if (!allSelected) return alert("Please vote for all positions.");
+      if (!allSelected) return alert('Please vote for all positions.');
 
-      // Apply votes
       chosenPerPos.forEach(item => {
         pollData[item.pos][item.candidateName].votes++;
       });
 
-      // Record voter info
       votedIDs.add(id);
       const now = new Date().toLocaleString();
       voterList.push({ id, name, grade, section, time: now });
       renderVoterList();
 
       // Clear form
-      $('studentId').value = "";
-      $('voterName').value = "";
-      $('voterGrade').value = "";
-      $('voterSection').value = "";
+      $('studentId').value = '';
+      $('voterName').value = '';
+      $('voterGrade').value = '';
+      $('voterSection').value = '';
 
-      alert("Thank you for voting!");
+      saveState();
+      alert('Thank you for voting!');
       renderDashboard();
     }
 
@@ -579,7 +643,7 @@
       const table = $('voterTable');
       table.innerHTML = "<tr><th>Student ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Date & Time</th></tr>";
       voterList.forEach(v => {
-        const row = document.createElement("tr");
+        const row = document.createElement('tr');
         row.innerHTML = `<td>${v.id}</td><td>${v.name}</td><td>${v.grade}</td><td>${v.section}</td><td>${v.time}</td>`;
         table.appendChild(row);
       });
@@ -588,26 +652,22 @@
     // Dashboard
     function renderDashboard() {
       const container = $('dashboardResults');
-      container.innerHTML = ""; // clear first
+      container.innerHTML = "";
       const now = new Date();
-      const dateTime = now.toLocaleDateString() + " " + now.toLocaleTimeString();
-      const ts = document.createElement("div");
-      ts.className = "timestamp";
+      const dateTime = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+      const ts = document.createElement('div');
+      ts.className = 'timestamp';
       ts.textContent = `Last Updated: ${dateTime}`;
       container.appendChild(ts);
 
       positions.forEach(pos => {
-        const card = document.createElement("div");
-        card.className = "posCard";
+        const card = document.createElement('div');
+        card.className = 'posCard';
         card.innerHTML = `<div class='positionHeader'>${pos}</div>`;
         const candidates = pollData[pos] || {};
-        // find leader
         let leader = null, maxVotes = -1;
         Object.keys(candidates).forEach(name => {
-          if (candidates[name].votes > maxVotes) {
-            maxVotes = candidates[name].votes;
-            leader = name;
-          }
+          if (candidates[name].votes > maxVotes) { maxVotes = candidates[name].votes; leader = name; }
         });
         if (Object.keys(candidates).length === 0) {
           card.innerHTML += `<div class="small">No candidates.</div>`;
@@ -615,7 +675,7 @@
           Object.keys(candidates).forEach(name => {
             const c = candidates[name];
             const isLeader = name === leader;
-            const item = document.createElement("div");
+            const item = document.createElement('div');
             item.style = `display:flex;align-items:center;gap:10px;margin:5px 0;${isLeader ? 'background:#dff0d8;padding:6px;border-radius:6px;' : ''}`;
             item.innerHTML = `
               <div style="width:60px;height:60px;overflow:hidden;border-radius:8px;border:1px solid #ccc;"><img src="${c.img}" width="60" height="60" style="object-fit:cover;"></div>
@@ -630,12 +690,21 @@
     }
 
     function renderAll() {
+      $('mainTitle').textContent = schoolName;
+      $('schoolNameInput').value = schoolName;
       updatePositionDropdown();
       renderAdminList();
       renderVoteArea();
       renderDashboard();
       renderVoterList();
     }
+
+    // attempt to load saved state on start
+    (function init() {
+      const loaded = loadState();
+      if (!loaded) saveState(); // create initial storage
+      renderAll();
+    })();
 
     // attach some initial behavior
     renderAll();
