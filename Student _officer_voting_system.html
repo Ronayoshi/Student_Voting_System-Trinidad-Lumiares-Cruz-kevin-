@@ -83,6 +83,14 @@
     .controls { display:flex; gap:10px; flex-wrap:wrap; }
     .controls > * { flex: 1 1 150px; }
     .note { font-size:13px; color:#555; margin-top:8px; }
+
+    /* Simple modal for editing candidate */
+    .modalOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:9999; }
+    .modal { background:white; padding:16px; border-radius:8px; width:560px; max-width:95%; box-shadow:0 8px 30px rgba(0,0,0,0.2); }
+    .modal h4 { margin-top:0; }
+    .imgPreview { width:80px; height:80px; overflow:hidden; border-radius:8px; border:1px solid #ccc; display:inline-block; vertical-align:middle; }
+    .modal .row { display:flex; gap:10px; }
+    .modalActions { display:flex; gap:10px; justify-content:flex-end; margin-top:10px; }
   </style>
 </head>
 <body>
@@ -209,19 +217,38 @@
     </table>
   </div>
 
+  <!-- EDIT MODAL -->
+  <div id="editModal" class="hidden">
+    <div class="modalOverlay">
+      <div class="modal" role="dialog" aria-modal="true">
+        <h4>Edit Candidate</h4>
+        <div class="row">
+          <div style="flex:1">
+            <label>Name</label>
+            <input id="editName" type="text">
+            <label>Year & Section</label>
+            <input id="editYearSec" type="text">
+            <label>Description</label>
+            <textarea id="editDesc"></textarea>
+          </div>
+          <div style="width:120px;text-align:center">
+            <label>Photo</label>
+            <div class="imgPreview" id="editImgPreview"><img id="editImgTag" src="" alt="" style="width:100%;height:100%;object-fit:cover"></div>
+            <input id="editImageFile" type="file" accept="image/*" style="margin-top:8px">
+            <div class="small note">Leave photo unchanged to keep current image.</div>
+          </div>
+        </div>
+        <div class="modalActions">
+          <button onclick="closeEditModal()" type="button">Cancel</button>
+          <button onclick="saveEditedCandidate()" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Utility: safe DOM access
     const $ = id => document.getElementById(id);
-
-    // Utility: sanitize position name -> usable radio 'name'
-    function safeName(pos) {
-      return String(pos).trim().replace(/\s+/g, '_').replace(/[^\w\-]/g, '');
-    }
-
-    // Utility: escape single quotes in strings for inline handlers
-    function escapeForInline(str) {
-      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    }
 
     // LOCAL STORAGE KEY
     const STORAGE_KEY = 'sovs_data_v1';
@@ -275,7 +302,6 @@
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return false;
         const state = JSON.parse(raw);
-        // Basic validation and assignment
         if (state.schoolName) schoolName = state.schoolName;
         if (state.users) users = state.users;
         if (Array.isArray(state.positions) && state.positions.length) positions = state.positions;
@@ -287,10 +313,6 @@
         console.error('Error loading state', e);
         return false;
       }
-    }
-
-    function exportJSON() {
-      // removed in UI; kept here if needed later
     }
 
     // INITIALIZE
@@ -352,7 +374,7 @@
       renderVoteArea();
     }
 
-    // IMAGE UPLOAD
+    // IMAGE UPLOAD (for Add Candidate)
     $('imageFile').addEventListener('change', e => {
       const file = e.target.files[0];
       if (file) {
@@ -366,9 +388,7 @@
       const newTitle = $('schoolNameInput').value.trim();
       if (!newTitle) return alert('Please enter a system title.');
       schoolName = newTitle;
-      // Update text on screen
       $('mainTitle').textContent = newTitle;
-      // Update <title> in browser tab
       $('pageTitle').textContent = newTitle;
       saveState();
       alert('Title updated successfully!');
@@ -420,7 +440,7 @@
       alert('Position deleted.');
     }
 
-    // CANDIDATES
+    // CANDIDATES - Add
     function addCandidate() {
       const pos = $('positionSelect').value;
       const name = $('candidateInput').value.trim();
@@ -442,37 +462,56 @@
       alert('Candidate added!');
     }
 
-    function editCandidate(pos,name) {
-      const c = pollData[pos][name]; if(!c) return alert('Candidate not found.');
-      const oldName = name;
-      const newName = prompt('Edit candidate name:', name) || name;
-      const newYear = prompt('Edit year & section:', c.yearSec) || c.yearSec;
-      const newDesc = prompt('Edit description:', c.desc) || c.desc;
+    // EDIT candidate: open modal instead of prompt-based flow
+    let _editing = { pos: null, oldName: null };
 
-      const changeImg = confirm('Would you like to replace the candidate photo?');
-      if (changeImg) {
-        const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = 'image/*';
-        fileInput.onchange = e => {
-          const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = ev => applyCandidateEdit(pos,oldName,newName,newYear,newDesc,ev.target.result);
-            reader.readAsDataURL(file);
-          } else { applyCandidateEdit(pos,oldName,newName,newYear,newDesc,c.img); }
-        };
-        fileInput.click();
-      } else { applyCandidateEdit(pos,oldName,newName,newYear,newDesc,c.img); }
+    function openEditModal(pos, name) {
+      const c = pollData[pos][name];
+      if (!c) return alert('Candidate not found.');
+      _editing.pos = pos; _editing.oldName = name;
+      $('editName').value = name;
+      $('editYearSec').value = c.yearSec || '';
+      $('editDesc').value = c.desc || '';
+      $('editImgTag').src = c.img || `https://via.placeholder.com/80?text=${encodeURIComponent(name)}`;
+      $('editImageFile').value = '';
+      $('editModal').classList.remove('hidden');
     }
 
-    function applyCandidateEdit(pos, oldName, newName, newYear, newDesc, newImg) {
-      const c = pollData[pos][oldName];
-      if (!c) return;
-      if (newName !== oldName) {
-        pollData[pos][newName] = { votes: c.votes, img: newImg, yearSec: newYear, desc: newDesc };
-        delete pollData[pos][oldName];
-      } else {
-        pollData[pos][oldName] = { ...c, img: newImg, yearSec: newYear, desc: newDesc };
+    function closeEditModal() { $('editModal').classList.add('hidden'); _editing = { pos: null, oldName: null }; }
+
+    // Preview selected image in modal
+    $('editImageFile').addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = ev => $('editImgTag').src = ev.target.result;
+      r.readAsDataURL(f);
+    });
+
+    function saveEditedCandidate() {
+      const pos = _editing.pos; const oldName = _editing.oldName;
+      if (!pos || !oldName) return closeEditModal();
+      const newName = $('editName').value.trim();
+      const newYear = $('editYearSec').value.trim();
+      const newDesc = $('editDesc').value.trim();
+      if (!newName || !newYear || !newDesc) return alert('Please fill in all fields.');
+
+      // get image: if user selected a file, use preview src (already set), otherwise keep existing
+      const imgSrc = $('editImgTag').src || (pollData[pos][oldName] && pollData[pos][oldName].img) || `https://via.placeholder.com/80?text=${encodeURIComponent(newName)}`;
+
+      const existingVotes = (pollData[pos][oldName] && pollData[pos][oldName].votes) || 0;
+
+      // If name changed and target name already exists, prevent accidental overwrite
+      if (newName !== oldName && pollData[pos] && pollData[pos][newName]) {
+        if (!confirm(`There is already a candidate named "${newName}" in ${pos}. Overwrite?`)) return;
       }
+
+      // Apply update while preserving votes if renaming
+      if (!pollData[pos]) pollData[pos] = {};
+      pollData[pos][newName] = { votes: existingVotes, img: imgSrc, yearSec: newYear, desc: newDesc };
+      if (newName !== oldName) delete pollData[pos][oldName];
+
+      closeEditModal();
       renderAll();
       saveState();
       alert('Candidate updated!');
@@ -508,50 +547,33 @@
           row.classList.add('candidateRow');
           row.dataset.name = name;
 
-          // cells
           const picTd = document.createElement('td');
           picTd.innerHTML = `<div style="width:60px;height:60px;overflow:hidden;border-radius:8px;border:1px solid #ccc;"><img src="${c.img}" width="60" height="60" style="object-fit:cover;"></div>`;
 
-          const nameTd = document.createElement('td');
-          nameTd.textContent = name;
-
-          const ysTd = document.createElement('td');
-          ysTd.textContent = c.yearSec;
-
-          const descTd = document.createElement('td');
-          descTd.textContent = c.desc;
-
-          const votesTd = document.createElement('td');
-          votesTd.textContent = c.votes;
+          const nameTd = document.createElement('td'); nameTd.textContent = name;
+          const ysTd = document.createElement('td'); ysTd.textContent = c.yearSec;
+          const descTd = document.createElement('td'); descTd.textContent = c.desc;
+          const votesTd = document.createElement('td'); votesTd.textContent = c.votes;
 
           const actionsTd = document.createElement('td');
-
-          // action buttons (use addEventListener to avoid inline-escaping issues)
           const editBtn = document.createElement('button');
-          editBtn.className = 'actionBtn';
-          editBtn.textContent = 'Edit';
-          editBtn.addEventListener('click', () => editCandidate(pos, name));
+          editBtn.className = 'actionBtn'; editBtn.textContent = 'Edit';
+          editBtn.addEventListener('click', () => openEditModal(pos, name));
 
           const delBtn = document.createElement('button');
-          delBtn.className = 'actionBtn deleteBtn';
-          delBtn.textContent = 'Delete';
+          delBtn.className = 'actionBtn deleteBtn'; delBtn.textContent = 'Delete';
           delBtn.addEventListener('click', () => deleteCandidate(pos, name));
 
-          actionsTd.appendChild(editBtn);
-          actionsTd.appendChild(delBtn);
+          actionsTd.appendChild(editBtn); actionsTd.appendChild(delBtn);
 
-          row.appendChild(picTd);
-          row.appendChild(nameTd);
-          row.appendChild(ysTd);
-          row.appendChild(descTd);
-          row.appendChild(votesTd);
-          row.appendChild(actionsTd);
-
+          row.appendChild(picTd); row.appendChild(nameTd); row.appendChild(ysTd); row.appendChild(descTd); row.appendChild(votesTd); row.appendChild(actionsTd);
           table.appendChild(row);
         });
         candidateList.appendChild(table);
       });
     }
+
+    function safeName(pos) { return String(pos).trim().replace(/\s+/g, '_').replace(/[^\w\-]/g, ''); }
 
     function renderVoteArea() {
       const voteArea = $('voteArea');
@@ -578,15 +600,11 @@
             imgDiv.style = 'width:60px;height:60px;overflow:hidden;border-radius:8px;border:1px solid #ccc;';
             const img = document.createElement('img');
             img.src = c.img;
-            img.width = 60;
-            img.height = 60;
-            img.style.objectFit = 'cover';
+            img.width = 60; img.height = 60; img.style.objectFit = 'cover';
             imgDiv.appendChild(img);
             const info = document.createElement('div');
             info.innerHTML = `<strong>${name}</strong><br><small>${c.yearSec}</small><br><em>${c.desc}</em>`;
-            label.appendChild(input);
-            label.appendChild(imgDiv);
-            label.appendChild(info);
+            label.appendChild(input); label.appendChild(imgDiv); label.appendChild(info);
             div.appendChild(label);
           });
         }
@@ -628,17 +646,13 @@
       renderVoterList();
 
       // Clear form
-      $('studentId').value = '';
-      $('voterName').value = '';
-      $('voterGrade').value = '';
-      $('voterSection').value = '';
+      $('studentId').value = ''; $('voterName').value = ''; $('voterGrade').value = ''; $('voterSection').value = '';
 
       saveState();
       alert('Thank you for voting!');
       renderDashboard();
     }
 
-    // Render voter list table
     function renderVoterList() {
       const table = $('voterTable');
       table.innerHTML = "<tr><th>Student ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Date & Time</th></tr>";
@@ -649,7 +663,6 @@
       });
     }
 
-    // Dashboard
     function renderDashboard() {
       const container = $('dashboardResults');
       container.innerHTML = "";
@@ -702,7 +715,7 @@
     // attempt to load saved state on start
     (function init() {
       const loaded = loadState();
-      if (!loaded) saveState(); // create initial storage
+      if (!loaded) saveState();
       renderAll();
     })();
 
